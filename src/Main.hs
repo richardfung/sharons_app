@@ -2,16 +2,15 @@
 module Main where
 
 import Battle
-import Secrets
 
 import Control.Applicative
 import Snap.Core
-import Snap.Util.FileServe
-import Snap.Http.Server
+-- import Snap.Util.FileServe
+-- import Snap.Http.Server
 
 main :: IO ()
 main = do
-    Just af <- getAuctionFile
+    af <- getAuctionFile
     print af
     --quickHttpServe site
 

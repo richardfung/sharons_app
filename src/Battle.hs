@@ -9,16 +9,28 @@ module Battle
 import Secrets
 
 import Control.Exception (throwIO)
-import Control.Monad
 import Data.Aeson
-import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text, pack)
 import GHC.Generics
 import Network.HTTP.Req
 import qualified Data.ByteString.Char8 as B
 
+auctionUrl :: B.ByteString
 auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/tichondrius?locale=en_US"
+
+love :: String
+love = "Akelia"
+
+-- TODO get actual item data and maybe cache the per item price
+data Auction = Auction { itemId :: Int
+                       , owner :: String
+                       , buyout :: Int
+                       , quantity :: Int } deriving (Generic, Show)
+instance FromJSON Auction
+
+data Auctions = Auctions { auctions :: [Auction] } deriving (Generic, Show)
+instance FromJSON Auctions
 
 data AuctionFile = AuctionFile { url :: String
                                , lastModified :: Int }
@@ -30,13 +42,12 @@ data AuctionFiles = AuctionFiles { files :: [AuctionFile] }
 instance FromJSON AuctionFiles
 
 instance MonadHttp IO where
-    handleHttpException = throwIO
+    handleHttpException = throwIO -- TODO log or something
 
-getAuctionFile :: IO (Maybe AuctionFile)
+getAuctionFile :: IO AuctionFile
 getAuctionFile = do
-    let Just (url, _) = parseUrlHttps auctionUrl
+    let Just (url', _) = parseUrlHttps auctionUrl
         opts = "locale" =: ("en_US" :: Text) <>
                "apikey" =: (pack apiKey)
-    rsp <- req GET url NoReqBody jsonResponse opts
-    let afs = responseBody rsp :: AuctionFiles
-    return $ Just $ head $ files afs
+    rsp <- req GET url' NoReqBody jsonResponse opts
+    return $ responseBody rsp
