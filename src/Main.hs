@@ -10,7 +10,7 @@ import Snap.Core
 
 main :: IO ()
 main = do
-    af <- getAuctionFile
+    af <- getAuctionFiles
     print af
     --quickHttpServe site
 

@@ -11,11 +11,14 @@ Cabal-version:       >=1.2
 Executable sharons-app
   hs-source-dirs: src
   main-is: Main.hs
+  other-modules: Battle
+               , Secrets
 
   Build-depends:
     base                      >= 4     && < 5,
     aeson                     >= 0.11.2 && < 0.12.0,
     bytestring                >= 0.9.1 && < 0.11,
+    containers,
     monad-control             >= 1.0   && < 1.1,
     mtl                       >= 2     && < 3,
     snap-core                 >= 1.0   && < 1.1,
