@@ -12,6 +12,7 @@ Executable sharons-app
   hs-source-dirs: src
   main-is: Main.hs
   other-modules: Battle
+               , ListMap
                , Secrets
 
   Build-depends:

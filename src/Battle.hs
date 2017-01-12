@@ -2,15 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Battle
-( AuctionFile
+( Auction(buyout, item, owner, quantity)
+, AuctionFile(lastModified, url)
+, AuctionFiles(files)
+, getAuction
 , getAuctionFiles
 ) where
 
+import ListMap
 import Secrets
 
 import Control.Exception (throwIO)
 import Control.Concurrent.MVar
 import Data.Aeson
+import qualified Data.ByteString.Char8 as B
 import Data.List as L
 import Data.Map as M
 import Data.Monoid ((<>))
@@ -18,7 +23,6 @@ import Data.Text (Text, pack)
 import GHC.Generics
 import Network.HTTP.Req
 import System.IO.Unsafe
-import qualified Data.ByteString.Char8 as B
 
 auctionUrl :: B.ByteString
 auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/tichondrius?locale=en_US"
@@ -29,25 +33,27 @@ love = "Akelia"
 -- TODO add this to monad or something
 -- First item in list will be Sharon's, rest will be auctions that are cheaper
 -- this should be in sorted order by price per item
-currentAuctions :: MVar (M.Map Int [AuctionMetadata])
-currentAuctions = unsafePerformIO $ newMVar S.empty
+currentAuctions :: MVar (ListMap Int AuctionMetadata)
+currentAuctions = unsafePerformIO $ newMVar M.empty
 
 -- TODO add this to monad or something
 lastAuctionTime :: MVar Int
 lastAuctionTime = unsafePerformIO $ newMVar 0
 
 data Auction = Auction { buyout :: Int
-                       , itemId :: Int
+                       , item :: Int
                        , owner :: String
                        , quantity :: Int } deriving (Generic, Show)
 instance FromJSON Auction
 
 -- TODO get actual item data
 data AuctionMetadata = AuctionMetadata { meta_buyout :: Int
-                                       , meta_itemId :: Int
+                                       , meta_item :: Int
                                        , meta_owner :: String
                                        , meta_pricePerItem :: Double
                                        , meta_quantity :: Int }
+instance Eq AuctionMetadata where
+    a == b = (meta_pricePerItem a) == (meta_pricePerItem b)
 instance Ord AuctionMetadata where
     compare a b = compare (meta_pricePerItem a) (meta_pricePerItem b)
 
@@ -71,7 +77,8 @@ getAuction s = do
     let parseResult = parseUrlHttp s
     case parseResult of
         Just (url', opts) ->
-            responseBody <$> req GET url' NoReqBody jsonResponse opts
+            auctions <$> responseBody <$>
+                req GET url' NoReqBody jsonResponse opts
         _ -> return [] -- TODO log something
 
 getNewAuctions :: IO [Auction]
@@ -83,13 +90,29 @@ getNewAuctions = do
     newAuctions <- mapM (getAuction . B.pack . url) newFiles
     let isSharons :: Auction -> Bool
         isSharons = (love ==) . owner
-        toMeta :: [[Auction]] -> [AuctionMetadata]
-        toMeta filterFun= L.map toMetadata $ concat $
-            L.map (L.filter filterFun) newAuctions
+        toMeta :: (Auction -> Bool) -> ListMap Int AuctionMetadata
+        toMeta filterFun= L.foldr (\a m -> add (meta_item a) a m) M.empty $
+            L.map toMetadata $ concat $ L.map (L.filter filterFun) newAuctions
         sharonsAuctions = toMeta isSharons
+        sharonsMinPrices :: M.Map Int Double
+        sharonsMinPrices = M.map minimum $ 
+            M.map (L.map meta_pricePerItem) sharonsAuctions
         isUndercutting :: Auction -> Bool
-        undercuttingAuctions = toMeta
+        isUndercutting a =
+            let item' = item a
+                buyout' = buyout a
+                quantity' = quantity a
+            in (M.member item' sharonsMinPrices) &&
+                   ((toPricePerItem buyout' quantity') <
+                   (sharonsMinPrices M.! item'))
+        undercuttingAuctions = toMeta isUndercutting
+        newCurrentAuctions = M.mapWithKey (\i as -> sharonsAuctions M.! i ++ as)
+            undercuttingAuctions
 
+    -- set new current auctions
+    swapMVar currentAuctions $ newCurrentAuctions
+
+    -- set new lastAuctionTime
     swapMVar lastAuctionTime $ maximum $ L.map lastModified newFiles
     return []
 
@@ -101,14 +124,17 @@ getAuctionFiles = do
     rsp <- req GET url' NoReqBody jsonResponse opts
     return $ responseBody rsp
 
+toPricePerItem :: Int -> Int -> Double
+toPricePerItem buyout' quantity' =
+    (fromIntegral buyout') / (fromIntegral quantity')
+
 toMetadata :: Auction -> AuctionMetadata
 toMetadata Auction{ buyout=buyout'
-                  , itemId=itemId'
+                  , item=item'
                   , owner=owner'
                   , quantity=quantity' } =
     AuctionMetadata { meta_buyout=buyout'
-                    , meta_itemId=itemId'
+                    , meta_item=item'
                     , meta_owner=owner'
-                    , meta_pricePerItem=(fromIntegral buyout') /
-                        (fromIntegral quantity')
+                    , meta_pricePerItem=toPricePerItem buyout' quantity'
                     , meta_quantity=quantity' }
