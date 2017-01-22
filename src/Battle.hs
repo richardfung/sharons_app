@@ -7,6 +7,7 @@ module Battle
 , AuctionFiles(files)
 , getAuction
 , getAuctionFiles
+, getNewAuctions
 ) where
 
 import ListMap
@@ -25,7 +26,8 @@ import Network.HTTP.Req
 import System.IO.Unsafe
 
 auctionUrl :: B.ByteString
-auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/tichondrius?locale=en_US"
+auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/twisting-nether?locale=en_US"
+-- auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/tichondrius?locale=en_US"
 
 love :: String
 love = "Akelia"
@@ -51,7 +53,8 @@ data AuctionMetadata = AuctionMetadata { meta_buyout :: Int
                                        , meta_item :: Int
                                        , meta_owner :: String
                                        , meta_pricePerItem :: Double
-                                       , meta_quantity :: Int }
+                                       , meta_quantity :: Int } deriving
+                                       (Show)
 instance Eq AuctionMetadata where
     a == b = (meta_pricePerItem a) == (meta_pricePerItem b)
 instance Ord AuctionMetadata where
@@ -81,7 +84,7 @@ getAuction s = do
                 req GET url' NoReqBody jsonResponse opts
         _ -> return [] -- TODO log something
 
-getNewAuctions :: IO [Auction]
+getNewAuctions :: IO (ListMap Int AuctionMetadata)
 getNewAuctions = do
     minTime <- readMVar lastAuctionTime
 
@@ -114,7 +117,7 @@ getNewAuctions = do
 
     -- set new lastAuctionTime
     swapMVar lastAuctionTime $ maximum $ L.map lastModified newFiles
-    return []
+    return newCurrentAuctions
 
 getAuctionFiles :: IO AuctionFiles
 getAuctionFiles = do
