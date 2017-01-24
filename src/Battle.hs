@@ -10,6 +10,8 @@ module Battle
 , getNewAuctions
 ) where
 
+
+import Auction
 import ListMap
 import Secrets
 
@@ -49,17 +51,6 @@ data Auction = Auction { buyout :: Int
 instance FromJSON Auction
 
 -- TODO get actual item data
-data AuctionMetadata = AuctionMetadata { meta_buyout :: Int
-                                       , meta_item :: Int
-                                       , meta_owner :: String
-                                       , meta_pricePerItem :: Double
-                                       , meta_quantity :: Int } deriving
-                                       (Show)
-instance Eq AuctionMetadata where
-    a == b = (meta_pricePerItem a) == (meta_pricePerItem b)
-instance Ord AuctionMetadata where
-    compare a b = compare (meta_pricePerItem a) (meta_pricePerItem b)
-
 data Auctions = Auctions { auctions :: [Auction] } deriving (Generic, Show)
 instance FromJSON Auctions
 
