@@ -63,8 +63,9 @@ data AuctionFiles = AuctionFiles { files :: [AuctionFile] }
     deriving (Generic, Show)
 instance FromJSON AuctionFiles
 
+-- TODO get rid of this
 instance MonadHttp IO where
-    handleHttpException = throwIO -- TODO log or something
+    handleHttpException = throwIO
 
 getAuction :: B.ByteString -> IO [Auction]
 getAuction s = do
