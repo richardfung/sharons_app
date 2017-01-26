@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Auction
 ( AuctionMetadata( AuctionMetadata, meta_buyout, meta_item, meta_owner
                  , meta_pricePerItem, meta_quantity)
@@ -26,9 +25,20 @@ class (Monad m) => AuctionMonad m where
     getCurrentAuctions ::  m (MVar (ListMap Int AuctionMetadata))
     getLastAuctionTime ::  m (MVar Int)
 
-newtype AuctionMonadT m a = AuctionMonadT (ReaderT (MVar (ListMap Int AuctionMetadata), MVar Int) m a) deriving (Applicative, Functor, Monad)
--- TODO figure out how to define this without GeneralizedNewtypeDeriving
+newtype AuctionMonadT m a = AuctionMonadT (ReaderT (MVar (ListMap Int AuctionMetadata), MVar Int) m a)
 
 instance (Monad m) => AuctionMonad (AuctionMonadT m) where
     getCurrentAuctions = AuctionMonadT $ fst <$> ask
     getLastAuctionTime = AuctionMonadT $ snd <$> ask
+
+instance (Monad m) => Functor (AuctionMonadT m) where
+    fmap f (AuctionMonadT readerT) = AuctionMonadT $ fmap f readerT
+
+instance (Monad m) => Applicative (AuctionMonadT m) where
+    pure a = AuctionMonadT $ pure a
+    (AuctionMonadT f) <*> (AuctionMonadT a) = AuctionMonadT $ f <*> a
+
+instance (Monad m) => Monad (AuctionMonadT m) where
+    (AuctionMonadT readerT) >>= f =
+        let f' a = let AuctionMonadT r = f a in r
+        in AuctionMonadT $ readerT >>= f'
