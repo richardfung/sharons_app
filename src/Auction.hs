@@ -1,13 +1,18 @@
 module Auction
 ( AuctionMetadata( AuctionMetadata, meta_buyout, meta_item, meta_owner
                  , meta_pricePerItem, meta_quantity)
+, AuctionMonad (getCurrentAuctions, getLastAuctionTime)
+, AuctionMonadT
+, lift
+, runAuction
 ) where
 
 import ListMap
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar
-import Control.Monad.Reader (ReaderT, ask)
+import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
+import Control.Monad.Trans (MonadTrans)
 
 data AuctionMetadata = AuctionMetadata { meta_buyout :: Int
                                        , meta_item :: Int
@@ -42,3 +47,9 @@ instance (Monad m) => Monad (AuctionMonadT m) where
     (AuctionMonadT readerT) >>= f =
         let f' a = let AuctionMonadT r = f a in r
         in AuctionMonadT $ readerT >>= f'
+
+instance MonadTrans AuctionMonadT where
+    lift m = AuctionMonadT $ lift m
+
+runAuction :: AuctionMonadT m a -> (MVar (ListMap Int AuctionMetadata), MVar Int) -> m a
+runAuction (AuctionMonadT readerT) s = runReaderT readerT s
