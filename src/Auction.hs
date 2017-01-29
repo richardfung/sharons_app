@@ -1,5 +1,5 @@
 module Auction
-( AuctionMetadata( AuctionMetadata, meta_buyout, meta_item, meta_owner
+( AuctionMetadata( AuctionMetadata, meta_auc, meta_buyout, meta_item, meta_owner
                  , meta_pricePerItem, meta_quantity)
 , AuctionMonad (getCurrentAuctions, getLastAuctionTime)
 , AuctionMonadT
@@ -14,7 +14,8 @@ import Control.Concurrent.MVar
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
 import Control.Monad.Trans (MonadTrans)
 
-data AuctionMetadata = AuctionMetadata { meta_buyout :: Int
+data AuctionMetadata = AuctionMetadata { meta_auc :: Int
+                                       , meta_buyout :: Int
                                        , meta_item :: Int
                                        , meta_owner :: String
                                        , meta_pricePerItem :: Double

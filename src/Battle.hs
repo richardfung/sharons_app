@@ -19,6 +19,7 @@ import Control.Exception (throwIO)
 import Control.Concurrent.MVar
 import Data.Aeson
 import qualified Data.ByteString.Char8 as B
+import Data.Foldable (any)
 import Data.List as L
 import Data.Map as M
 import Data.Monoid ((<>))
@@ -33,7 +34,8 @@ auctionUrl = B.pack "https://us.api.battle.net/wow/auction/data/twisting-nether?
 love :: String
 love = "Akelia"
 
-data Auction = Auction { buyout :: Int
+data Auction = Auction { auc :: Int
+                       , buyout :: Int
                        , item :: Int
                        , owner :: String
                        , quantity :: Int } deriving (Generic, Show)
@@ -65,12 +67,13 @@ getAuction s = do
                 req GET url' NoReqBody jsonResponse opts
         _ -> return [] -- TODO log something
 
-getNewAuctions :: AuctionMonadT IO (ListMap Int AuctionMetadata)
+getNewAuctions :: AuctionMonadT IO Bool
 getNewAuctions = do
     lastAuctionTime <- getLastAuctionTime
-    currentAuctions <- getCurrentAuctions
+    currentAuctionsM <- getCurrentAuctions
 
     lift $ do
+        prevAuctions <- readMVar currentAuctionsM
         minTime <- readMVar lastAuctionTime
 
         newFiles <- L.filter (\f -> minTime < lastModified f) <$> files
@@ -78,31 +81,36 @@ getNewAuctions = do
         newAuctions <- mapM (getAuction . B.pack . url) newFiles
         let isSharons :: Auction -> Bool
             isSharons = (love ==) . owner
-            toMeta :: (Auction -> Bool) -> ListMap Int AuctionMetadata
-            toMeta filterFun= L.foldr (\a m -> add (meta_item a) a m) M.empty $
+            toSortedMeta :: (Auction -> Bool) -> ListMap Int AuctionMetadata
+            toSortedMeta filterFun = M.map (L.sortOn meta_pricePerItem) $
+                L.foldr (\a m -> add (meta_item a) a m) M.empty $
                 L.map toMetadata $ concat $ L.map (L.filter filterFun) newAuctions
-            sharonsAuctions = toMeta isSharons
-            sharonsMinPrices :: M.Map Int Double
-            sharonsMinPrices = M.map minimum $ 
+            sharonsAuctions = toSortedMeta isSharons
+            sharonsPrices :: M.Map Int Double
+            sharonsPrices = M.map maximum $ 
                 M.map (L.map meta_pricePerItem) sharonsAuctions
-            isUndercutting :: Auction -> Bool
-            isUndercutting a =
-                let item' = item a
-                    buyout' = buyout a
-                    quantity' = quantity a
-                in (M.member item' sharonsMinPrices) &&
-                       ((toPricePerItem buyout' quantity') <
-                       (sharonsMinPrices M.! item'))
-            undercuttingAuctions = toMeta isUndercutting
-            newCurrentAuctions = M.mapWithKey (\i as -> sharonsAuctions M.! i ++ as)
-                undercuttingAuctions
-
+            undercuttingAuctions =
+                let isUndercutting :: Auction -> Bool
+                    isUndercutting a =
+                        let item' = item a
+                            buyout' = buyout a
+                            quantity' = quantity a
+                        in (M.member item' sharonsPrices) &&
+                               ((toPricePerItem buyout' quantity') <
+                               (sharonsPrices M.! item'))
+                in toSortedMeta isUndercutting
+            shouldNotify = any (any (\a -> all (\other -> meta_auc other /= meta_auc a)
+                                    (prevAuctions M.! (meta_item a)))
+                               ) undercuttingAuctions
+            newCurrentAuctions = M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v)
+                                              sharonsAuctions
+        --
         -- set new current auctions
-        swapMVar currentAuctions $ newCurrentAuctions
+        swapMVar currentAuctionsM $ newCurrentAuctions
 
         -- set new lastAuctionTime
         swapMVar lastAuctionTime $ maximum $ L.map lastModified newFiles
-        return newCurrentAuctions
+        return shouldNotify
 
 getAuctionFiles :: IO AuctionFiles
 getAuctionFiles = do
@@ -117,11 +125,13 @@ toPricePerItem buyout' quantity' =
     (fromIntegral buyout') / (fromIntegral quantity')
 
 toMetadata :: Auction -> AuctionMetadata
-toMetadata Auction{ buyout=buyout'
+toMetadata Auction{ auc=auc'
+                  , buyout=buyout'
                   , item=item'
                   , owner=owner'
                   , quantity=quantity' } =
-    AuctionMetadata { meta_buyout=buyout'
+    AuctionMetadata { meta_auc=auc'
+                    , meta_buyout=buyout'
                     , meta_item=item'
                     , meta_owner=owner'
                     , meta_pricePerItem=toPricePerItem buyout' quantity'
