@@ -67,51 +67,6 @@ getAuction s = do
                 req GET url' NoReqBody jsonResponse opts
         _ -> return [] -- TODO log something
 
-getNewAuctions :: AuctionMonadT IO Bool
-getNewAuctions = do
-    lastAuctionTime <- getLastAuctionTime
-    currentAuctionsM <- getCurrentAuctions
-
-    lift $ do
-        prevAuctions <- readMVar currentAuctionsM
-        minTime <- readMVar lastAuctionTime
-
-        newFiles <- L.filter (\f -> minTime < lastModified f) <$> files
-            <$> getAuctionFiles
-        newAuctions <- mapM (getAuction . B.pack . url) newFiles
-        let isSharons :: Auction -> Bool
-            isSharons = (love ==) . owner
-            toSortedMeta :: (Auction -> Bool) -> ListMap Int AuctionMetadata
-            toSortedMeta filterFun = M.map (L.sortOn meta_pricePerItem) $
-                L.foldr (\a m -> add (meta_item a) a m) M.empty $
-                L.map toMetadata $ concat $ L.map (L.filter filterFun) newAuctions
-            sharonsAuctions = toSortedMeta isSharons
-            sharonsPrices :: M.Map Int Double
-            sharonsPrices = M.map maximum $ 
-                M.map (L.map meta_pricePerItem) sharonsAuctions
-            undercuttingAuctions =
-                let isUndercutting :: Auction -> Bool
-                    isUndercutting a =
-                        let item' = item a
-                            buyout' = buyout a
-                            quantity' = quantity a
-                        in (M.member item' sharonsPrices) &&
-                               ((toPricePerItem buyout' quantity') <
-                               (sharonsPrices M.! item'))
-                in toSortedMeta isUndercutting
-            shouldNotify = any (any (\a -> all (\other -> meta_auc other /= meta_auc a)
-                                    (prevAuctions M.! (meta_item a)))
-                               ) undercuttingAuctions
-            newCurrentAuctions = M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v)
-                                              sharonsAuctions
-        --
-        -- set new current auctions
-        swapMVar currentAuctionsM $ newCurrentAuctions
-
-        -- set new lastAuctionTime
-        swapMVar lastAuctionTime $ maximum $ L.map lastModified newFiles
-        return shouldNotify
-
 getAuctionFiles :: IO AuctionFiles
 getAuctionFiles = do
     let Just (url', _) = parseUrlHttps auctionUrl
@@ -119,6 +74,40 @@ getAuctionFiles = do
                "apikey" =: (pack apiKey)
     rsp <- req GET url' NoReqBody jsonResponse opts
     return $ responseBody rsp
+
+getNewAuctions :: [AuctionFile] -> IO [[Auction]]
+getNewAuctions newFiles = mapM (getAuction . B.pack . url) newFiles
+
+
+getNewFiles :: Int -> IO [AuctionFile]
+getNewFiles minTime = L.filter (\f -> minTime < lastModified f) <$> files
+          <$> getAuctionFiles
+
+getSharonsAuctions :: [[Auction]] -> ListMap Int AuctionMetadata
+getSharonsAuctions newAuctions =
+    let isSharons = (love ==) . owner
+    in toSortedMeta isSharons newAuctions
+
+getUndercuttingAuctions :: [[Auction]] -> ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata
+getUndercuttingAuctions newAuctions sharonsAuctions =
+    let sharonsPrices :: M.Map Int Double
+        sharonsPrices = M.map maximum $ 
+            M.map (L.map meta_pricePerItem) sharonsAuctions
+        isUndercutting :: Auction -> Bool
+        isUndercutting a =
+            let item' = item a
+                buyout' = buyout a
+                quantity' = quantity a
+            in (M.member item' sharonsPrices) &&
+                   ((toPricePerItem buyout' quantity') <
+                   (sharonsPrices M.! item'))
+    in toSortedMeta isUndercutting newAuctions
+
+shouldNotify :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata -> Bool
+shouldNotify prevAuctions undercuttingAuctions =
+    any (any (\a -> all (\other -> meta_auc other /= meta_auc a)
+                        (prevAuctions M.! (meta_item a)))
+        ) undercuttingAuctions
 
 toPricePerItem :: Int -> Int -> Double
 toPricePerItem buyout' quantity' =
@@ -136,3 +125,28 @@ toMetadata Auction{ auc=auc'
                     , meta_owner=owner'
                     , meta_pricePerItem=toPricePerItem buyout' quantity'
                     , meta_quantity=quantity' }
+
+toSortedMeta :: (Auction -> Bool) -> [[Auction]] -> ListMap Int AuctionMetadata
+toSortedMeta filterFun newAuctions = M.map (L.sortOn meta_pricePerItem) $
+    L.foldr (\a m -> add (meta_item a) a m) M.empty $
+    L.map toMetadata $ concat $ L.map (L.filter filterFun) newAuctions
+
+update :: AuctionMonadT IO Bool
+update = do
+    currentAuctionsM <- getCurrentAuctions
+    lastAuctionTimeM <- getLastAuctionTime
+
+    lift $ do
+        prevAuctions <- readMVar currentAuctionsM
+        lastAuctionTime <- readMVar lastAuctionTimeM
+
+        newFiles <- getNewFiles lastAuctionTime
+        newAuctions <- getNewAuctions newFiles
+        let sharonsAuctions = getSharonsAuctions newAuctions
+            undercuttingAuctions = getUndercuttingAuctions newAuctions sharonsAuctions
+            newCurrentAuctions = M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v)
+                                              sharonsAuctions
+
+        swapMVar currentAuctionsM $! newCurrentAuctions
+        swapMVar lastAuctionTimeM $! L.maximum $ L.map lastModified newFiles
+        return $! shouldNotify prevAuctions undercuttingAuctions
