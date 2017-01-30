@@ -2,12 +2,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Battle
-( Auction(buyout, item, owner, quantity)
+( Auction(auc, buyout, item, owner, quantity)
+, Auctions(auctions)
 , AuctionFile(lastModified, url)
 , AuctionFiles(files)
 , getAuction
 , getAuctionFiles
 , getNewAuctions
+, getSharonsAuctions
+, love
 ) where
 
 
