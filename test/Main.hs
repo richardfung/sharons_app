@@ -4,9 +4,13 @@ module Main
 
 import BattleTest
 
-import Test.HUnit (runTestTT)
+import Test.HUnit (Test(TestList), runTestTT)
 
 main :: IO ()
 main = do
     runTestTT testGetSharonsAuctions
     return ()
+
+tests :: Test
+tests = TestList [ testGetSharonsAuctions
+                 , testGetUndercuttingAuctions]

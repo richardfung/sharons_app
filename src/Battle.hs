@@ -10,6 +10,7 @@ module Battle
 , getAuctionFiles
 , getNewAuctions
 , getSharonsAuctions
+, getUndercuttingAuctions
 , love
 ) where
 
