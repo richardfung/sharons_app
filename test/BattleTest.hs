@@ -13,7 +13,7 @@ import Data.ByteString.Lazy.Char8 as B (readFile)
 import Data.List as L (all, any)
 import Data.Map as M ((!), mapWithKey, member)
 import Data.Maybe (fromJust, isJust)
-import Test.HUnit (Test(TestCase), assertBool)
+import Test.HUnit (Test(TestCase, TestLabel), assertBool)
 
 getTestAuctions :: IO [Auction]
 getTestAuctions = do
@@ -22,7 +22,7 @@ getTestAuctions = do
     return $ auctions $ fromJust auctionsMaybe
 
 testGetSharonsAuctions :: Test
-testGetSharonsAuctions = TestCase $ do
+testGetSharonsAuctions = TestLabel "testGetSharonsAuctions" $ TestCase $ do
     as <- getTestAuctions
     let sharonsAuctions = getSharonsAuctions [as]
 
@@ -35,7 +35,7 @@ testGetSharonsAuctions = TestCase $ do
     return ()
 
 testGetUndercuttingAuctions :: Test
-testGetUndercuttingAuctions = TestCase $ do
+testGetUndercuttingAuctions = TestLabel "testGetUndercuttingAuctions" $ TestCase $ do
     as <- getTestAuctions
     let sharonsAuctions = getSharonsAuctions [as]
         undercuttingAuctions = getUndercuttingAuctions [as] sharonsAuctions
@@ -45,7 +45,7 @@ testGetUndercuttingAuctions = TestCase $ do
         and $ mapWithKey (\k _ -> test k) undercuttingAuctions
 
 testShouldNotify :: Test
-testShouldNotify = TestCase $ do
+testShouldNotify = TestLabel "TestShouldNotify" $ TestCase $ do
     as <- getTestAuctions
     let sharonsAuctions = getSharonsAuctions [as]
         undercuttingAuctions = getUndercuttingAuctions [as] sharonsAuctions

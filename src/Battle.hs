@@ -87,7 +87,7 @@ getNewAuctions newFiles = mapM (getAuction . B.pack . url) newFiles
 getNewCurrentAuctions :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata
     -> ListMap Int AuctionMetadata
 getNewCurrentAuctions sharonsAuctions undercuttingAuctions =
-    M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v) sharonsAuctions
+    M.mapWithKey (\k v -> M.findWithDefault [] k undercuttingAuctions ++ v) sharonsAuctions
 
 getNewFiles :: Int -> IO [AuctionFile]
 getNewFiles minTime = L.filter (\f -> minTime < lastModified f) <$> files
@@ -119,9 +119,14 @@ getUndercuttingAuctions newAuctions sharonsAuctions =
  -}
 shouldNotify :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata -> Bool
 shouldNotify prevAuctions undercuttingAuctions =
-    let auc_diff a b = meta_auc a /= meta_auc b
-    in any (any (\a -> all (auc_diff a) (prevAuctions M.! (meta_item a)))
-           ) undercuttingAuctions
+    let itemTest :: Int -> [AuctionMetadata] -> Bool
+        itemTest k v = (not $ M.member k prevAuctions) ||
+            (hasNew (prevAuctions M.! k) v)
+        auc_same :: AuctionMetadata -> AuctionMetadata -> Bool
+        auc_same a b = meta_auc a == meta_auc b
+        hasNew :: [AuctionMetadata] -> [AuctionMetadata] -> Bool
+        hasNew a b = not $ all (\b0 -> any (auc_same b0) a) b
+    in or $ M.mapWithKey itemTest undercuttingAuctions
 
 toPricePerItem :: Int -> Int -> Double
 toPricePerItem buyout' quantity' =
