@@ -9,9 +9,11 @@ module Battle
 , getAuction
 , getAuctionFiles
 , getNewAuctions
+, getNewCurrentAuctions
 , getSharonsAuctions
 , getUndercuttingAuctions
 , love
+, shouldNotify
 ) where
 
 
@@ -82,6 +84,10 @@ getAuctionFiles = do
 getNewAuctions :: [AuctionFile] -> IO [[Auction]]
 getNewAuctions newFiles = mapM (getAuction . B.pack . url) newFiles
 
+getNewCurrentAuctions :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata
+    -> ListMap Int AuctionMetadata
+getNewCurrentAuctions sharonsAuctions undercuttingAuctions =
+    M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v) sharonsAuctions
 
 getNewFiles :: Int -> IO [AuctionFile]
 getNewFiles minTime = L.filter (\f -> minTime < lastModified f) <$> files
@@ -107,11 +113,15 @@ getUndercuttingAuctions newAuctions sharonsAuctions =
                    (sharonsPrices M.! item'))
     in toSortedMeta isUndercutting newAuctions
 
+{-
+ - We should notify if there is any undercutting auction that was not seen
+ - previously
+ -}
 shouldNotify :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetadata -> Bool
 shouldNotify prevAuctions undercuttingAuctions =
-    any (any (\a -> all (\other -> meta_auc other /= meta_auc a)
-                        (prevAuctions M.! (meta_item a)))
-        ) undercuttingAuctions
+    let auc_diff a b = meta_auc a /= meta_auc b
+    in any (any (\a -> all (auc_diff a) (prevAuctions M.! (meta_item a)))
+           ) undercuttingAuctions
 
 toPricePerItem :: Int -> Int -> Double
 toPricePerItem buyout' quantity' =
@@ -148,8 +158,7 @@ update = do
         newAuctions <- getNewAuctions newFiles
         let sharonsAuctions = getSharonsAuctions newAuctions
             undercuttingAuctions = getUndercuttingAuctions newAuctions sharonsAuctions
-            newCurrentAuctions = M.mapWithKey (\k v -> undercuttingAuctions M.! k ++ v)
-                                              sharonsAuctions
+            newCurrentAuctions = getNewCurrentAuctions sharonsAuctions undercuttingAuctions
 
         swapMVar currentAuctionsM $! newCurrentAuctions
         swapMVar lastAuctionTimeM $! L.maximum $ L.map lastModified newFiles

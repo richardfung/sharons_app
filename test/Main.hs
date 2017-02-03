@@ -8,9 +8,10 @@ import Test.HUnit (Test(TestList), runTestTT)
 
 main :: IO ()
 main = do
-    runTestTT testGetSharonsAuctions
+    runTestTT tests
     return ()
 
 tests :: Test
 tests = TestList [ testGetSharonsAuctions
-                 , testGetUndercuttingAuctions]
+                 , testGetUndercuttingAuctions
+                 , testShouldNotify]

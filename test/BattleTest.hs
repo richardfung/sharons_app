@@ -2,6 +2,7 @@
 module BattleTest
 ( testGetSharonsAuctions
 , testGetUndercuttingAuctions
+, testShouldNotify
 ) where
 
 import Auction
@@ -42,3 +43,14 @@ testGetUndercuttingAuctions = TestCase $ do
         test k = L.all (flip smallerThanSharons $ sharonsAuctions M.! k) $ undercuttingAuctions M.! k
     assertBool "Undercutting auctions not smaller than Sharon's auctions" $
         and $ mapWithKey (\k _ -> test k) undercuttingAuctions
+
+testShouldNotify :: Test
+testShouldNotify = TestCase $ do
+    as <- getTestAuctions
+    let sharonsAuctions = getSharonsAuctions [as]
+        undercuttingAuctions = getUndercuttingAuctions [as] sharonsAuctions
+        currentAuctions = getNewCurrentAuctions sharonsAuctions undercuttingAuctions
+    assertBool "Incorrectly notifying on same auctions" $
+        shouldNotify currentAuctions currentAuctions
+    assertBool "Not notifying when we should" $
+        shouldNotify sharonsAuctions currentAuctions
