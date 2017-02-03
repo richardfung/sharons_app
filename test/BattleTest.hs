@@ -51,6 +51,6 @@ testShouldNotify = TestLabel "TestShouldNotify" $ TestCase $ do
         undercuttingAuctions = getUndercuttingAuctions [as] sharonsAuctions
         currentAuctions = getNewCurrentAuctions sharonsAuctions undercuttingAuctions
     assertBool "Incorrectly notifying on same auctions" $
-        shouldNotify currentAuctions currentAuctions
+        not $ shouldNotify currentAuctions currentAuctions
     assertBool "Not notifying when we should" $
         shouldNotify sharonsAuctions currentAuctions
