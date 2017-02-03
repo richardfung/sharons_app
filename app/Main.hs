@@ -1,4 +1,6 @@
 module Main where
 
+import GMail
+
 main :: IO ()
-main = print "hi"
+main = send
