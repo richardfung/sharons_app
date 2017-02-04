@@ -2,6 +2,7 @@
 module BattleTest
 ( testGetSharonsAuctions
 , testGetUndercuttingAuctions
+, testPrettyPrintMetadata
 , testShouldNotify
 ) where
 
@@ -43,6 +44,14 @@ testGetUndercuttingAuctions = TestLabel "testGetUndercuttingAuctions" $ TestCase
         test k = L.all (flip smallerThanSharons $ sharonsAuctions M.! k) $ undercuttingAuctions M.! k
     assertBool "Undercutting auctions not smaller than Sharon's auctions" $
         and $ mapWithKey (\k _ -> test k) undercuttingAuctions
+
+testPrettyPrintMetadata :: Test
+testPrettyPrintMetadata = TestLabel "pretty printing" $ TestCase $ do
+    as <- getTestAuctions
+    let sharonsAuctions = getSharonsAuctions [as]
+        undercuttingAuctions = getUndercuttingAuctions [as] sharonsAuctions
+        currentAuctions = getNewCurrentAuctions sharonsAuctions undercuttingAuctions
+    putStr $ prettyPrintMetadata currentAuctions
 
 testShouldNotify :: Test
 testShouldNotify = TestLabel "TestShouldNotify" $ TestCase $ do

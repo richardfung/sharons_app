@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module GMail
-( send
+( sendEmail
 ) where
 
 import Data.Maybe
@@ -10,8 +10,9 @@ import Network.Mail.Client.Gmail (sendGmail)
 import Network.Mail.Mime (Address(Address))
 import Secrets (gmailPass, gmailUser)
 
-send :: IO ()
-send = let gmailPass' = TL.pack gmailPass
-           gmailUserT = T.pack gmailUser
-           gmailUserTL = TL.pack gmailUser
-       in sendGmail gmailUserTL gmailPass' (Address (Just "Kit") gmailUserT) [Address (Just "Kit") gmailUserT] [] [] "CONFIDENTIAL SUBJECT MATTER" "WHAT A NICE BODY" [] 10000000
+sendEmail :: String -> IO ()
+sendEmail body =
+    let gmailPass' = TL.pack gmailPass
+        gmailUserT = T.pack gmailUser
+        gmailUserTL = TL.pack gmailUser
+    in sendGmail gmailUserTL gmailPass' (Address (Just "Kit") gmailUserT) [Address (Just "Kit") gmailUserT] [] [] "Notification from Sharon's App!" (TL.pack body) [] 10000000

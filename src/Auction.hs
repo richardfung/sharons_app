@@ -52,5 +52,5 @@ instance (Monad m) => Monad (AuctionMonadT m) where
 instance MonadTrans AuctionMonadT where
     lift m = AuctionMonadT $ lift m
 
-runAuction :: AuctionMonadT m a -> (MVar (ListMap Int AuctionMetadata), MVar Int) -> m a
-runAuction (AuctionMonadT readerT) s = runReaderT readerT s
+runAuction :: (MVar (ListMap Int AuctionMetadata), MVar Int) -> AuctionMonadT m a -> m a
+runAuction s (AuctionMonadT readerT) = runReaderT readerT s

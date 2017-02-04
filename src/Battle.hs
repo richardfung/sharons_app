@@ -13,7 +13,9 @@ module Battle
 , getSharonsAuctions
 , getUndercuttingAuctions
 , love
+, prettyPrintMetadata
 , shouldNotify
+, Battle.update
 ) where
 
 
@@ -113,6 +115,22 @@ getUndercuttingAuctions newAuctions sharonsAuctions =
                    (sharonsPrices M.! item'))
     in toSortedMeta isUndercutting newAuctions
 
+prettyPrintMetadata :: ListMap Int AuctionMetadata -> String
+prettyPrintMetadata aucs =
+    let aucsBeingUndercut = M.filter (any (\a -> meta_owner a /= love)) aucs
+        metasToString :: [AuctionMetadata] -> String
+        metasToString mds = L.intercalate "\n" $
+            L.map (\md -> unlines $ [ "Owner: " ++ (meta_owner md)
+                                    , "Price Per Item: " ++ (show $ meta_pricePerItem md)
+                                    , "Buyout: " ++ (show $ meta_buyout md)
+                                    , "Quantity: " ++ (show $ meta_quantity md)
+                                    ]
+                  ) $ reverse mds
+        stringMap = M.map metasToString aucsBeingUndercut
+        dashes = L.replicate 25 '-'
+        toString :: Int -> String -> String -> String
+        toString k v acc = dashes ++ "\n\t" ++ (show k) ++ "\n\n" ++ v ++ "\n" ++ acc
+    in M.foldrWithKey toString "" stringMap
 {-
  - We should notify if there is any undercutting auction that was not seen
  - previously
