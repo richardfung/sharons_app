@@ -14,7 +14,6 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 main :: IO ()
 main = do
     auctionsM <- MV.newMVar M.empty
-    auctionTimeM <- MV.newMVar 0 :: IO (MV.MVar Int)
 
     lastLoopM <- MV.newMVar 0
     forever $ do
@@ -24,7 +23,7 @@ main = do
             t <- getPOSIXTime
             if (t - lastLoop >= 15*60) then do
                 putStrLn "Checking for new auctions"
-                notify <- runAuction (auctionsM, auctionTimeM) Battle.update
+                notify <- runAuction auctionsM Battle.update
                 if notify then do
                     putStrLn "Notifying"
                     aucs <- readMVar auctionsM

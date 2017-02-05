@@ -91,10 +91,6 @@ getNewCurrentAuctions :: ListMap Int AuctionMetadata -> ListMap Int AuctionMetad
 getNewCurrentAuctions sharonsAuctions undercuttingAuctions =
     M.mapWithKey (\k v -> M.findWithDefault [] k undercuttingAuctions ++ v) sharonsAuctions
 
-getNewFiles :: Int -> IO [AuctionFile]
-getNewFiles minTime = L.filter (\f -> minTime < lastModified f) <$> files
-          <$> getAuctionFiles
-
 getSharonsAuctions :: [[Auction]] -> ListMap Int AuctionMetadata
 getSharonsAuctions newAuctions =
     let isSharons = (love ==) . owner
@@ -171,18 +167,15 @@ toSortedMeta filterFun newAuctions = M.map (L.sortOn meta_pricePerItem) $
 update :: AuctionMonadT IO Bool
 update = do
     currentAuctionsM <- getCurrentAuctions
-    lastAuctionTimeM <- getLastAuctionTime
 
     lift $ do
         prevAuctions <- readMVar currentAuctionsM
-        lastAuctionTime <- readMVar lastAuctionTimeM
 
-        newFiles <- getNewFiles lastAuctionTime
+        newFiles <- files <$> getAuctionFiles
         newAuctions <- getNewAuctions newFiles
         let sharonsAuctions = getSharonsAuctions newAuctions
             undercuttingAuctions = getUndercuttingAuctions newAuctions sharonsAuctions
             newCurrentAuctions = getNewCurrentAuctions sharonsAuctions undercuttingAuctions
 
         swapMVar currentAuctionsM $! newCurrentAuctions
-        swapMVar lastAuctionTimeM $! L.maximum $ L.map lastModified newFiles
         return $! shouldNotify prevAuctions undercuttingAuctions

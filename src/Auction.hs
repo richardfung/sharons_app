@@ -1,7 +1,7 @@
 module Auction
 ( AuctionMetadata( AuctionMetadata, meta_auc, meta_buyout, meta_item, meta_owner
                  , meta_pricePerItem, meta_quantity)
-, AuctionMonad (getCurrentAuctions, getLastAuctionTime)
+, AuctionMonad (getCurrentAuctions)
 , AuctionMonadT
 , lift
 , runAuction
@@ -29,13 +29,11 @@ instance Ord AuctionMetadata where
 
 class (Monad m) => AuctionMonad m where
     getCurrentAuctions ::  m (MVar (ListMap Int AuctionMetadata))
-    getLastAuctionTime ::  m (MVar Int)
 
-newtype AuctionMonadT m a = AuctionMonadT (ReaderT (MVar (ListMap Int AuctionMetadata), MVar Int) m a)
+newtype AuctionMonadT m a = AuctionMonadT (ReaderT (MVar (ListMap Int AuctionMetadata)) m a)
 
 instance (Monad m) => AuctionMonad (AuctionMonadT m) where
-    getCurrentAuctions = AuctionMonadT $ fst <$> ask
-    getLastAuctionTime = AuctionMonadT $ snd <$> ask
+    getCurrentAuctions = AuctionMonadT $ ask
 
 instance (Monad m) => Functor (AuctionMonadT m) where
     fmap f (AuctionMonadT readerT) = AuctionMonadT $ fmap f readerT
@@ -52,5 +50,5 @@ instance (Monad m) => Monad (AuctionMonadT m) where
 instance MonadTrans AuctionMonadT where
     lift m = AuctionMonadT $ lift m
 
-runAuction :: (MVar (ListMap Int AuctionMetadata), MVar Int) -> AuctionMonadT m a -> m a
+runAuction :: MVar (ListMap Int AuctionMetadata) -> AuctionMonadT m a -> m a
 runAuction s (AuctionMonadT readerT) = runReaderT readerT s
