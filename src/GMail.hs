@@ -17,5 +17,4 @@ sendEmail body =
         gmailUserT = T.pack gmailUser
         gmailUserTL = TL.pack gmailUser
         lovesEmailT = T.pack lovesEmail
-        myEmailT = T.pack myEmail
-    in sendGmail gmailUserTL gmailPass' (Address (Just "Kit") gmailUserT) [Address (Just "Love") lovesEmailT] [Address (Just "Richard") myEmailT] [] "Notification from Sharon's App!" (TL.pack body) [] 10000000
+    in sendGmail gmailUserTL gmailPass' (Address (Just "Kit") gmailUserT) [Address (Just "Love") lovesEmailT] [] [] "Notification from Sharon's App!" (TL.pack body) [] 10000000
